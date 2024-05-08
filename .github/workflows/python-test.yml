@@ -21,7 +21,7 @@ jobs:
     - name: Run unit tests
       run: |
         pip install pytest pytest-cov
-        pytest test/unit --doctest-modules --junitxml=junit/test-results.xml --cov=src --cov-report=xml --cov-report=html
+        pytest test --doctest-modules --junitxml=junit/test-results.xml --cov=src --cov-report=xml --cov-report=html
     
     - name: Print coverage report
       run: |

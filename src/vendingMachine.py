@@ -7,11 +7,14 @@ from passlib.context import CryptContext
 import jwt
 import logging
 import bcrypt
-from credentials import TokenData
-from models import Deposit, User, Product, Purchase
-from models.user import UserInDB
+from src.models.credentials import TokenData
+from src.models.deposit import Deposit
+from src.models.product import Product
+from src.models.purchase import Purchase
+from src.models.user import User, UserInDB
 
 app = FastAPI()
+
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
