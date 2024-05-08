@@ -23,7 +23,7 @@ def test_user():
 
 @pytest.fixture
 def test_product():
-    return Product(id=1, name="Test Product", price=10, quantity=100)
+    return Product(id=1, name="Test Product", price=10, quantity=100, seller="seller1")
 
 
 @pytest.mark.asyncio
