@@ -133,8 +133,10 @@ async def create_user(user: User, password: str = Body(...)):
 async def read_users_me(current_user: User = Depends(get_current_user)):
     # Check if the current user exists in the database
     if current_user.username not in users_db:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
     # Return only the username and role of the current user
     return User(username=current_user.username, role=current_user.role)
 
@@ -148,7 +150,7 @@ async def create_product(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
-    
+
     # Validate input data
     if not product.name:
         raise HTTPException(
@@ -156,11 +158,13 @@ async def create_product(
         )
     if product.price <= 0:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Product price must be greater than zero."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product price must be greater than zero.",
         )
     if product.quantity < 0:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Product quantity cannot be negative."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product quantity cannot be negative.",
         )
     # Here you can add additional validations as needed
 
@@ -170,7 +174,7 @@ async def create_product(
     # Your logic to create a product
     # For demonstration purposes, let's assume we add the product to the database
     products_db[product.id] = product
-    
+
     return product
 
 
@@ -181,13 +185,79 @@ async def read_product(product_id: int, current_user: User = Depends(get_current
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
-    
+
     # Log product read
     logger.info(f"User '{current_user.username}' read product with ID: {product_id}")
 
     # Your logic to read a product
     product = products_db[product_id]
-    
+
+    return product
+
+
+@app.delete("/products/{product_id}", response_model=Product)
+async def delete_product(
+    product_id: int, current_user: User = Depends(get_current_user)
+):
+    # Validate user role
+    if current_user.role != "seller":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+    # Check if product exists
+    if product_id not in products_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+
+    # Log the action
+    logger.info(f"User '{current_user.username}' deleted product with ID: {product_id}")
+
+    # Delete the product
+    deleted_product = products_db.pop(product_id)
+
+    return deleted_product
+
+
+@app.put("/products/{product_id}", response_model=Product)
+async def update_product(
+    product_id: int, product: Product, current_user: User = Depends(get_current_user)
+):
+    # Validate user role
+    if current_user.role != "seller":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+    # Validate input data
+    if not product.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Product name is required."
+        )
+    if product.price <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product price must be greater than zero.",
+        )
+    if product.quantity < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product quantity cannot be negative.",
+        )
+
+    # Check if product exists
+    if product_id not in products_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+
+    # Log the action
+    logger.info(f"User '{current_user.username}' updated product with ID: {product_id}")
+
+    # Update the product
+    products_db[product_id] = product
+
     return product
 
 
@@ -198,12 +268,15 @@ async def read_seller_products(current_user: User = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
-    
+
     # Log the action
     logger.info(f"User '{current_user.username}' is retrieving seller's products")
-    
-    # Your logic to retrieve seller's products
-    seller_products = [product for product in products_db.values() if product.seller == current_user.username]
-    
-    return seller_products
 
+    # Your logic to retrieve seller's products
+    seller_products = [
+        product
+        for product in products_db.values()
+        if product.seller == current_user.username
+    ]
+
+    return seller_products
