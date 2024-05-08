@@ -25,6 +25,7 @@ users_db = {
     "seller1": {"username": "seller1", "password": "password", "role": "seller"},
     "buyer1": {"username": "buyer1", "password": "password", "role": "buyer"},
 }
+user_balances_db = {"buyer1": 0, "buyer2": 0}
 products_db = {}
 
 # Password hashing
@@ -211,6 +212,12 @@ async def delete_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
 
+    if products_db[product_id].seller != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User deleting the product isn't the owner",
+        )
+
     # Log the action
     logger.info(f"User '{current_user.username}' deleted product with ID: {product_id}")
 
@@ -252,6 +259,12 @@ async def update_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
 
+    if products_db[product_id].seller != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User updating the product isn't the owner",
+        )
+
     # Log the action
     logger.info(f"User '{current_user.username}' updated product with ID: {product_id}")
 
@@ -280,3 +293,100 @@ async def read_seller_products(current_user: User = Depends(get_current_user)):
     ]
 
     return seller_products
+
+
+@app.post("/deposit/")
+async def deposit_coins(
+    deposit: Deposit, current_user: User = Depends(get_current_user)
+):
+    # Validate user role
+    if current_user.role != "buyer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+    # Validate deposit amount
+    if deposit.amount not in [5, 10, 20, 50, 100]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid deposit amount. Must be 5, 10, 20, 50, or 100 cents.",
+        )
+
+    # Update user's balance in the database
+    if current_user.username not in user_balances_db:
+        user_balances_db[current_user.username] = deposit.amount
+    else:
+        user_balances_db[current_user.username] += deposit.amount
+
+    # Log the deposit action
+    logger.info(f"User '{current_user.username}' deposited {deposit.amount} cents.")
+
+    # Return success message
+    return {"message": "Deposit successful"}
+
+
+@app.post("/buy/")
+async def buy_products(
+    purchase: Purchase, current_user: User = Depends(get_current_user)
+):
+    # Validate user role
+    if current_user.role != "buyer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+    # Get product details from the database
+    product = products_db.get(purchase.product_id)
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+
+    # Calculate total cost of purchase
+    total_cost = product.price * purchase.amount
+
+    # Check if user has sufficient balance
+    if (
+        current_user.username not in user_balances_db
+        or user_balances_db[current_user.username] < total_cost
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient balance"
+        )
+
+    # Deduct total cost from user's balance
+    user_balances_db[current_user.username] -= total_cost
+
+    # Log the purchase action
+    logger.info(
+        f"User '{current_user.username}' bought {purchase.amount} of product '{product.name}'"
+    )
+
+    # Calculate change
+    change = user_balances_db[current_user.username]
+
+    # Return purchase details along with change
+    return {
+        "total_spent": total_cost,
+        "products_purchased": f"{purchase.amount} of {product.name}",
+        "change": change,
+    }
+
+
+# Reset endpoint
+@app.post("/reset/")
+async def reset_deposit(current_user: User = Depends(get_current_user)):
+    # Validate user role
+    if current_user.role != "buyer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+    # Reset user's balance to zero
+    user_balances_db[current_user.username] = 0
+
+    # Log the reset action
+    logger.info(f"User '{current_user.username}' reset their deposit.")
+
+    # Return success message
+    return {"message": "Deposit reset successful"}
