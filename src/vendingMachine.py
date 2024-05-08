@@ -7,11 +7,12 @@ from passlib.context import CryptContext
 import jwt
 import logging
 import bcrypt
+import secrets
 from src.models.credentials import TokenData
 from src.models.deposit import Deposit
 from src.models.product import Product
 from src.models.purchase import Purchase
-from src.models.user import User, UserInDB
+from src.models.user import User, UserInDB, UserRequest
 
 app = FastAPI()
 
@@ -20,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Secret key to sign JWT tokens
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 
 # Mock database for users and products
@@ -74,10 +75,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                 detail="Could not validate credentials",
             )
         token_data = TokenData(username=username)
-    except jwt.JWTError:
+    except:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Could not validate credentials 2",
         )
     return token_data
 
@@ -102,35 +103,35 @@ def hash_password(password: str) -> str:
 
 
 # CRUD for users
-@app.post("/users/", response_model=User)
-async def create_user(user: User, password: str = Body(...)):
+@app.post("/users/", response_model=UserRequest)
+async def create_user(userRequest: UserRequest):
     # Validate input
-    if not user.username or not user.role:
+    if not userRequest.username or not userRequest.role:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username and role are required.",
         )
-    if user.role not in ["seller", "buyer"]:
+    if userRequest.role not in ["seller", "buyer"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid role. Must be 'seller' or 'buyer'.",
         )
-    if user.username in users_db:
+    if userRequest.username in users_db:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists."
         )
 
     # Add user to database
-    users_db[user.username] = {
-        "username": user.username,
-        "role": user.role,
-        "hashed_password": hash_password(password),
+    users_db[userRequest.username] = {
+        "username": userRequest.username,
+        "role": userRequest.role,
+        "hashed_password": hash_password(userRequest.password),
     }
 
     # Log user creation
-    logger.info(f"User '{user.username}' created with role '{user.role}'.")
+    logger.info(f"User '{userRequest.username}' created with role '{userRequest.role}'.")
 
-    return user
+    return userRequest
 
 
 @app.get("/users/me/", response_model=User)
@@ -142,7 +143,7 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         )
 
     # Return only the username and role of the current user
-    return User(username=current_user.username, role=current_user.role)
+    return {"status": "ok"}
 
 
 @app.post("/products/", response_model=Product)

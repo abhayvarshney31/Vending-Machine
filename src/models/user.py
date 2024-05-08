@@ -1,6 +1,12 @@
 from pydantic import BaseModel
 
 
+class UserRequest(BaseModel):
+    username: str
+    role: str
+    password: str
+
+
 class User(BaseModel):
     username: str
     role: str
