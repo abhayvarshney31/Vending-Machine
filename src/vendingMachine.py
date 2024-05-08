@@ -133,15 +133,12 @@ async def create_user(user: User, password: str = Body(...)):
 async def read_users_me(current_user: User = Depends(get_current_user)):
     # Check if the current user exists in the database
     if current_user.username not in users_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     # Return only the username and role of the current user
     return User(username=current_user.username, role=current_user.role)
 
 
-# CRUD for products
 @app.post("/products/", response_model=Product)
 async def create_product(
     product: Product, current_user: User = Depends(get_current_user)
@@ -151,7 +148,7 @@ async def create_product(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
-
+    
     # Validate input data
     if not product.name:
         raise HTTPException(
@@ -159,13 +156,11 @@ async def create_product(
         )
     if product.price <= 0:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Product price must be greater than zero.",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Product price must be greater than zero."
         )
     if product.quantity < 0:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Product quantity cannot be negative.",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Product quantity cannot be negative."
         )
     # Here you can add additional validations as needed
 
@@ -175,7 +170,7 @@ async def create_product(
     # Your logic to create a product
     # For demonstration purposes, let's assume we add the product to the database
     products_db[product.id] = product
-
+    
     return product
 
 
@@ -186,22 +181,29 @@ async def read_product(product_id: int, current_user: User = Depends(get_current
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
-
+    
     # Log product read
     logger.info(f"User '{current_user.username}' read product with ID: {product_id}")
 
     # Your logic to read a product
     product = products_db[product_id]
-
+    
     return product
 
 
-# Example of route with role-based access control
 @app.get("/seller-products/", response_model=List[Product])
 async def read_seller_products(current_user: User = Depends(get_current_user)):
+    # Validate user role
     if current_user.role != "seller":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
+    
+    # Log the action
+    logger.info(f"User '{current_user.username}' is retrieving seller's products")
+    
     # Your logic to retrieve seller's products
-    return list(products_db.values())
+    seller_products = [product for product in products_db.values() if product.seller == current_user.username]
+    
+    return seller_products
+
