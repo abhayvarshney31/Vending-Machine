@@ -85,15 +85,17 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
         )
     return current_user
 
+
 def hash_password(password: str) -> str:
     """
     Hashes the provided password using bcrypt.
     """
     # Hash the password using bcrypt
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
     # Return the hashed password as a string
-    return hashed_password.decode('utf-8')
+    return hashed_password.decode("utf-8")
+
 
 # CRUD for users
 @app.post("/users/", response_model=User)
@@ -129,7 +131,14 @@ async def create_user(user: User, password: str = Body(...)):
 
 @app.get("/users/me/", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    # Check if the current user exists in the database
+    if current_user.username not in users_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    # Return only the username and role of the current user
+    return User(username=current_user.username, role=current_user.role)
 
 
 # CRUD for products
@@ -137,19 +146,53 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 async def create_product(
     product: Product, current_user: User = Depends(get_current_user)
 ):
-    if current_user.role == "seller":
-        # Your logic to create a product
-        return product
-    else:
+    # Check if the current user has the role of "seller"
+    if current_user.role != "seller":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
 
+    # Validate input data
+    if not product.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Product name is required."
+        )
+    if product.price <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product price must be greater than zero.",
+        )
+    if product.quantity < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product quantity cannot be negative.",
+        )
+    # Here you can add additional validations as needed
 
-# Route-level authorization
+    # Log product creation
+    logger.info(f"User '{current_user.username}' created a product: {product.name}")
+
+    # Your logic to create a product
+    # For demonstration purposes, let's assume we add the product to the database
+    products_db[product.id] = product
+
+    return product
+
+
 @app.get("/products/{product_id}", response_model=Product)
 async def read_product(product_id: int, current_user: User = Depends(get_current_user)):
+    # Validate product_id
+    if product_id not in products_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+
+    # Log product read
+    logger.info(f"User '{current_user.username}' read product with ID: {product_id}")
+
     # Your logic to read a product
+    product = products_db[product_id]
+
     return product
 
 
