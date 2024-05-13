@@ -1,14 +1,12 @@
-from fastapi import Body, FastAPI, HTTPException, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Depends, Response, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from passlib.context import CryptContext
 import jwt
 import logging
 import bcrypt
 import secrets
-from src.models.credentials import TokenData
+
 from src.models.deposit import Deposit
 from src.models.product import Product
 from src.models.purchase import Purchase
@@ -25,11 +23,8 @@ SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 
 # Mock database for users and products
-users_db = {
-    "seller1": {"username": "seller1", "password": "password", "role": "seller"},
-    "buyer1": {"username": "buyer1", "password": "password", "role": "buyer"},
-}
-user_balances_db = {"buyer1": 0, "buyer2": 0}
+users_db = {}
+user_balances_db = {}
 products_db = {}
 
 # Password hashing
@@ -44,10 +39,22 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_user(username: str):
+def get_user(username: str) -> UserInDB:
     if username in users_db:
         user_dict = users_db[username]
         return UserInDB(**user_dict)
+
+
+def get_basic_user(username: str) -> User:
+    if username in users_db:
+        user_dict = users_db[username]
+        return User(**user_dict)
+
+
+def get_product(product_id: int) -> Product:
+    if product_id in products_db:
+        product_dict = products_db[product_id]
+        return Product(**product_dict)
 
 
 def authenticate_user(username: str, password: str):
@@ -69,26 +76,29 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
+        token_password = payload.get("password")
+        if username is None or token_password is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
             )
-        token_data = TokenData(username=username)
+        user = users_db.get(username)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User does not exist",
+            )
+        if not bcrypt.checkpw(token_password.encode("utf-8"), user["password"].encode("utf-8")):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password",
+            )
+        return get_basic_user(username)
     except:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials 2",
+            detail="Could not validate credentials",
         )
-    return token_data
-
-
-async def get_current_active_user(current_user: User = Depends(get_current_user)):
-    if current_user.role != "buyer":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
-        )
-    return current_user
 
 
 def hash_password(password: str) -> str:
@@ -102,7 +112,6 @@ def hash_password(password: str) -> str:
     return hashed_password.decode("utf-8")
 
 
-# CRUD for users
 @app.post("/users/", response_model=UserRequest)
 async def create_user(userRequest: UserRequest):
     # Validate input
@@ -129,9 +138,25 @@ async def create_user(userRequest: UserRequest):
     }
 
     # Log user creation
-    logger.info(f"User '{userRequest.username}' created with role '{userRequest.role}'.")
+    logger.info(
+        f"User '{userRequest.username}' created with role '{userRequest.role}'."
+    )
 
     return userRequest
+
+
+@app.delete("/users/me/")
+async def delete_users_me(current_user: User = Depends(get_current_user)):
+    # Check if the current user exists in the database
+    if current_user.username not in users_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    users_db.pop(current_user.username)
+
+    # Return only the username and role of the current user
+    return Response(status_code=status.HTTP_200_OK)
 
 
 @app.get("/users/me/", response_model=User)
@@ -143,14 +168,13 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         )
 
     # Return only the username and role of the current user
-    return {"status": "ok"}
+    return User(username=current_user.username, role=current_user.role)
 
 
 @app.post("/products/", response_model=Product)
 async def create_product(
     product: Product, current_user: User = Depends(get_current_user)
 ):
-    # Check if the current user has the role of "seller"
     if current_user.role != "seller":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
@@ -216,7 +240,8 @@ async def delete_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
 
-    if products_db[product_id].seller != current_user:
+    product = get_product(product_id)
+    if product.seller != current_user.username:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User deleting the product isn't the owner",
@@ -263,7 +288,7 @@ async def update_product(
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
 
-    if products_db[product_id].seller != current_user:
+    if products_db[product_id].seller != current_user.username:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User updating the product isn't the owner",
