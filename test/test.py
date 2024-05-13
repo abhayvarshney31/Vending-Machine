@@ -540,3 +540,20 @@ async def test_reset_deposit(test_client, test_user, mocker):
         "/reset/", headers={"Authorization": f"Bearer {password}"}
     )
     assert response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.asyncio
+async def test_login(test_client, test_user, mocker):
+    password = "password"
+    mocker.patch(
+        "src.vendingMachine.users_db",
+        {
+            test_user.username: {
+                "username": test_user.username,
+                "hashed_password": hash_password(password),
+                "role": test_user.role,
+            }
+        },
+    )
+    response = test_client.post("/login/", data={"username": test_user.username, "password": password})
+    assert response.status_code == status.HTTP_200_OK
