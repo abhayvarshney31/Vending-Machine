@@ -6,6 +6,7 @@ import jwt
 import logging
 import bcrypt
 import secrets
+import uvicorn
 
 from src.models.deposit import Deposit
 from src.models.product import Product
@@ -433,3 +434,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token = create_access_token(data={"sub": user.username, "password": form_data.password})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
