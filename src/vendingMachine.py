@@ -4,7 +4,6 @@ from typing import List
 from passlib.context import CryptContext
 import jwt
 import logging
-import bcrypt
 import secrets
 import uvicorn
 
@@ -28,35 +27,30 @@ users_db = {}
 user_balances_db = {}
 products_db = {}
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing using passlib
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 # Security
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-
 # Authentication functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
-
 
 def get_user(username: str) -> UserInDB:
     if username in users_db:
         user_dict = users_db[username]
         return UserInDB(**user_dict)
 
-
 def get_basic_user(username: str) -> User:
     if username in users_db:
         user_dict = users_db[username]
         return User(**user_dict)
 
-
 def get_product(product_id: int) -> Product:
     if product_id in products_db:
         product_dict = products_db[product_id]
         return Product(**product_dict)
-
 
 def authenticate_user(username: str, password: str):
     user = get_user(username)
@@ -66,12 +60,10 @@ def authenticate_user(username: str, password: str):
         return False
     return user
 
-
 # Token functions
 def create_access_token(data: dict):
     encoded_jwt = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -89,7 +81,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User does not exist",
             )
-        if not bcrypt.checkpw(token_password.encode("utf-8"), user["password"].encode("utf-8")):
+        if not pwd_context.verify(token_password, user["password"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect password",
@@ -101,16 +93,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Could not validate credentials",
         )
 
-
 def hash_password(password: str) -> str:
     """
-    Hashes the provided password using bcrypt.
+    Hashes the provided password using passlib.
     """
-    # Hash the password using bcrypt
-    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    # Hash the password using passlib
+    hashed_password = pwd_context.hash(password)
 
     # Return the hashed password as a string
-    return hashed_password.decode("utf-8")
+    return hashed_password
 
 
 @app.post("/users/", response_model=UserRequest)
