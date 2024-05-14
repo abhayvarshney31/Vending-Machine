@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -16,3 +17,9 @@ class UserInDB(BaseModel):
     username: str
     role: str
     hashed_password: str
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str]
+    role: Optional[str]
+    password: Optional[str]

@@ -29,7 +29,9 @@ def test_seller():
 
 @pytest.fixture
 def test_product():
-    return Product(id=1, name="Test Product", price=10, quantity=100, seller="test_seller")
+    return Product(
+        id=1, name="Test Product", price=10, quantity=100, seller="test_seller"
+    )
 
 
 @pytest.mark.asyncio
@@ -78,7 +80,10 @@ async def test_read_users_me(test_client: TestClient, test_user: User, mocker):
 
     response = test_client.get(
         "/users/me/",
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {password}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {password}",
+        },
     )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["username"] == test_user.username
@@ -125,7 +130,9 @@ async def test_read_product_as_user(test_client, test_user, test_product, mocker
         },
     )
 
-    response = test_client.get("/products/1", headers={"Authorization": f"Bearer {password}"})
+    response = test_client.get(
+        "/products/1", headers={"Authorization": f"Bearer {password}"}
+    )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["id"] == test_product.id
 
@@ -146,7 +153,9 @@ async def test_read_product_as_seller(test_client, test_seller, test_product, mo
         },
     )
 
-    response = test_client.get("/products/1", headers={"Authorization": f"Bearer {password}"})
+    response = test_client.get(
+        "/products/1", headers={"Authorization": f"Bearer {password}"}
+    )
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["id"] == test_product.id
 
@@ -195,7 +204,9 @@ async def test_read_users_me_invalid_token(test_client, test_user, mocker):
 
 
 @pytest.mark.asyncio
-async def test_create_product_invalid_price(test_client, test_seller, test_product, mocker):
+async def test_create_product_invalid_price(
+    test_client, test_seller, test_product, mocker
+):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
     mock_jwt.decode.return_value = {"sub": test_seller.username, "password": password}
@@ -220,7 +231,9 @@ async def test_create_product_invalid_price(test_client, test_seller, test_produ
 
 
 @pytest.mark.asyncio
-async def test_create_product_invalid_quantity(test_client, test_seller, test_product, mocker):
+async def test_create_product_invalid_quantity(
+    test_client, test_seller, test_product, mocker
+):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
     mock_jwt.decode.return_value = {"sub": test_seller.username, "password": password}
@@ -267,7 +280,9 @@ async def test_read_product_not_found(test_client, test_seller, mocker):
 
 
 @pytest.mark.asyncio
-async def test_update_product_invalid_name(test_client, test_seller, test_product, mocker):
+async def test_update_product_invalid_name(
+    test_client, test_seller, test_product, mocker
+):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
     mock_jwt.decode.return_value = {"sub": test_seller.username, "password": password}
@@ -292,7 +307,9 @@ async def test_update_product_invalid_name(test_client, test_seller, test_produc
 
 
 @pytest.mark.asyncio
-async def test_update_product_invalid_price(test_client, test_seller, test_product, mocker):
+async def test_update_product_invalid_price(
+    test_client, test_seller, test_product, mocker
+):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
     mock_jwt.decode.return_value = {"sub": test_seller.username, "password": password}
@@ -317,7 +334,9 @@ async def test_update_product_invalid_price(test_client, test_seller, test_produ
 
 
 @pytest.mark.asyncio
-async def test_update_product_invalid_quantity(test_client, test_seller, test_product, mocker):
+async def test_update_product_invalid_quantity(
+    test_client, test_seller, test_product, mocker
+):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
     mock_jwt.decode.return_value = {"sub": test_seller.username, "password": password}
@@ -357,10 +376,11 @@ async def test_delete_product_not_found(test_client, test_seller, mocker):
         },
     )
     response = test_client.delete(
-        "/products/999", 
+        "/products/999",
         headers={"Authorization": f"Bearer {password}"},
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 @pytest.mark.asyncio
 async def test_delete_product(test_client, test_seller, mocker):
@@ -385,7 +405,7 @@ async def test_delete_product(test_client, test_seller, mocker):
                 "name": "product",
                 "price": 100,
                 "quantity": 1,
-                "seller": test_seller.username
+                "seller": test_seller.username,
             }
         },
     )
@@ -412,9 +432,7 @@ async def test_deposit_invalid_amount(test_client, test_user, mocker):
     )
     mocker.patch(
         "src.vendingMachine.user_balances_db",
-        {
-            test_user.username: 0
-        },
+        {test_user.username: 0},
     )
 
     response = test_client.post(
@@ -429,9 +447,7 @@ async def test_deposit_invalid_user(test_client, test_user, mocker):
     mock_jwt.decode.return_value = {"sub": test_user.username}
     mocker.patch(
         "src.vendingMachine.user_balances_db",
-        {
-            test_user.username: 0
-        },
+        {test_user.username: 0},
     )
     response = test_client.post(
         "/deposit/",
@@ -458,9 +474,7 @@ async def test_buy_sufficient_balance(test_client, test_user, mocker):
     )
     mocker.patch(
         "src.vendingMachine.user_balances_db",
-        {
-            test_user.username: 10
-        },
+        {test_user.username: 10},
     )
     response = test_client.post(
         "/buy/",
@@ -487,9 +501,7 @@ async def test_buy_insufficient_balance(test_client, test_user, mocker):
     )
     mocker.patch(
         "src.vendingMachine.user_balances_db",
-        {
-            test_user.username: 0
-        },
+        {test_user.username: 0},
     )
     response = test_client.post(
         "/buy/",
@@ -503,7 +515,10 @@ async def test_buy_insufficient_balance(test_client, test_user, mocker):
 async def test_reset_deposit_invalid_user(test_client, test_user, mocker):
     mock_jwt = mocker.patch("src.vendingMachine.jwt")
     password = "password"
-    mock_jwt.decode.return_value = {"sub": test_user.username, "password": "invalid_token"}
+    mock_jwt.decode.return_value = {
+        "sub": test_user.username,
+        "password": "invalid_token",
+    }
     mocker.patch(
         "src.vendingMachine.users_db",
         {
@@ -518,7 +533,6 @@ async def test_reset_deposit_invalid_user(test_client, test_user, mocker):
         "/reset/", headers={"Authorization": "Bearer invalid_token"}
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
 
 
 @pytest.mark.asyncio
@@ -555,5 +569,7 @@ async def test_login(test_client, test_user, mocker):
             }
         },
     )
-    response = test_client.post("/login/", data={"username": test_user.username, "password": password})
+    response = test_client.post(
+        "/login/", data={"username": test_user.username, "password": password}
+    )
     assert response.status_code == status.HTTP_200_OK

@@ -10,7 +10,7 @@ import uvicorn
 from src.models.deposit import Deposit
 from src.models.product import Product
 from src.models.purchase import Purchase
-from src.models.user import User, UserInDB, UserRequest
+from src.models.user import User, UserInDB, UserRequest, UserUpdate
 
 app = FastAPI()
 
@@ -33,24 +33,29 @@ pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 # Security
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
+
 # Authentication functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
+
 
 def get_user(username: str) -> UserInDB:
     if username in users_db:
         user_dict = users_db[username]
         return UserInDB(**user_dict)
 
+
 def get_basic_user(username: str) -> User:
     if username in users_db:
         user_dict = users_db[username]
         return User(**user_dict)
 
+
 def get_product(product_id: int) -> Product:
     if product_id in products_db:
         product_dict = products_db[product_id]
         return Product(**product_dict)
+
 
 def authenticate_user(username: str, password: str):
     user = get_user(username)
@@ -60,10 +65,12 @@ def authenticate_user(username: str, password: str):
         return False
     return user
 
+
 # Token functions
 def create_access_token(data: dict):
     encoded_jwt = jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -92,6 +99,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
+
 
 def hash_password(password: str) -> str:
     """
@@ -135,6 +143,32 @@ async def create_user(userRequest: UserRequest):
     )
 
     return userRequest
+
+
+@app.patch("/users/me/", response_model=User)
+async def update_user(
+    user_update: UserUpdate, current_user: User = Depends(get_current_user)
+):
+    # Check if the current user exists in the database
+    if current_user.username not in users_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    if user_update.username:
+        users_db[current_user.username]["username"] = user_update.username
+
+    if user_update.role:
+        users_db[current_user.username]["role"] = user_update.role
+
+    if user_update.password:
+        users_db[current_user.username]["password"] = hash_password(
+            user_update.password
+        )
+
+    logger.info(f"User '{current_user.username}' updated.")
+
+    return current_user
 
 
 @app.delete("/users/me/")
@@ -187,13 +221,9 @@ async def create_product(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product quantity cannot be negative.",
         )
-    # Here you can add additional validations as needed
 
-    # Log product creation
     logger.info(f"User '{current_user.username}' created a product: {product.name}")
 
-    # Your logic to create a product
-    # For demonstration purposes, let's assume we add the product to the database
     products_db[product.id] = product
 
     return product
@@ -207,10 +237,8 @@ async def read_product(product_id: int, current_user: User = Depends(get_current
             status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
         )
 
-    # Log product read
     logger.info(f"User '{current_user.username}' read product with ID: {product_id}")
 
-    # Your logic to read a product
     product = products_db[product_id]
 
     return product
@@ -303,10 +331,8 @@ async def read_seller_products(current_user: User = Depends(get_current_user)):
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
         )
 
-    # Log the action
     logger.info(f"User '{current_user.username}' is retrieving seller's products")
 
-    # Your logic to retrieve seller's products
     seller_products = [
         product
         for product in products_db.values()
@@ -339,10 +365,8 @@ async def deposit_coins(
     else:
         user_balances_db[current_user.username] += deposit.amount
 
-    # Log the deposit action
     logger.info(f"User '{current_user.username}' deposited {deposit.amount} cents.")
 
-    # Return success message
     return {"message": "Deposit successful"}
 
 
@@ -423,7 +447,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(data={"sub": user.username, "password": form_data.password})
+    access_token = create_access_token(
+        data={"sub": user.username, "password": form_data.password}
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 
