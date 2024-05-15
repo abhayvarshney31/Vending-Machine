@@ -76,11 +76,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        token_password = payload.get("password")
+        token_password: str = payload.get("password")
         if username is None or token_password is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
+                detail="Unable to extract username and password from token",
             )
         user = users_db.get(username)
         if user is None:
@@ -88,16 +88,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User does not exist",
             )
-        if not pwd_context.verify(token_password, user["password"]):
-            raise HTTPException(
+        if not pwd_context.verify(token_password, user["hashed_password"]):
+            raise HTTPException( 
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect password",
             )
         return get_basic_user(username)
-    except:
+    except Exception as e:
+        print("An error occurred:", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Unable to validate credentials",
         )
 
 
@@ -115,10 +116,10 @@ def hash_password(password: str) -> str:
 @app.post("/users/", response_model=UserRequest)
 async def create_user(userRequest: UserRequest):
     # Validate input
-    if not userRequest.username or not userRequest.role:
+    if not userRequest.username or not userRequest.role or not userRequest.password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and role are required.",
+            detail="Username, password, and role are required.",
         )
     if userRequest.role not in ["seller", "buyer"]:
         raise HTTPException(
